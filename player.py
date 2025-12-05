@@ -7,7 +7,8 @@ class Player:
         self.addr = addr
         self.nome = nome
         self.pos = (1, 1)
-
+        self.hint_used = False
+        self.suggest_used = False
 
     def to_dict(self):
         return {

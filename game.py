@@ -38,6 +38,9 @@ class Game:
     def comando(self, player, comando):
         i, j = player.pos
 
+        # =====================
+        #       MOVIMENTOS
+        # =====================
         if comando == "up":
             novo = (i - 1, j)
         elif comando == "down":
@@ -46,54 +49,71 @@ class Game:
             novo = (i, j - 1)
         elif comando == "right":
             novo = (i, j + 1)
+
+        # =====================
+        #         HINT
+        # =====================
         elif comando == "hint":
-            if player.hint_usado:
+            if player.hint_used:
                 return False, "Você já usou sua dica."
-            player.hint_usado = True
+            player.hint_used = True
 
-            tx, ty = self.tesouro
             px, py = player.pos
+            tx, ty = self.tesouro
 
+            if px == tx and py == ty:
+                return False, "Você está no tesouro!"
+
+            # vertical tem prioridade
             if tx < px:
                 return False, "Dica: o tesouro está acima."
-            elif tx > px:
+            if tx > px:
                 return False, "Dica: o tesouro está abaixo."
-            elif ty > py:
+
+            # horizontal se estiver na mesma linha
+            if ty > py:
                 return False, "Dica: o tesouro está à direita."
-            elif ty < py:
+            if ty < py:
                 return False, "Dica: o tesouro está à esquerda."
-            else:
-                return False, "Você está no tesouro!"
+
+        # =====================
+        #       SUGGEST
+        # =====================
         elif comando == "suggest":
-            if player.suggest_usado:
+            if player.suggest_used:
                 return False, "Você já usou sua sugestão."
+            player.suggest_used = True
 
-            player.suggest_usado = True
-
-            tx, ty = self.tesouro
             px, py = player.pos
+            tx, ty = self.tesouro
+
+            if px == tx and py == ty:
+                return False, "Você está no tesouro!"
 
             if tx < px:
                 return False, "Sugestão: up"
-            elif tx > px:
+            if tx > px:
                 return False, "Sugestão: down"
-            elif ty > py:
+            if ty > py:
                 return False, "Sugestão: right"
-            elif ty < py:
+            if ty < py:
                 return False, "Sugestão: left"
-            else:
-                return False, "Você está no tesouro!"
+
         else:
             return False, "Comando inválido."
 
-        # movimento
-        ni, nj = novo
-        if 0 <= ni < 3 and 0 <= nj < 3:
-            player.pos = (ni, nj)
-        else:
-            return False, "Movimento inválido."
+        # =====================
+        #   PROCESSAR MOVIMENTO
+        # =====================
+        if comando in ["up", "down", "left", "right"]:
+            ni, nj = novo
 
-        if player.pos == self.tesouro:
-            return True, "Você encontrou o tesouro!"
+            if 0 <= ni < 3 and 0 <= nj < 3:
+                player.pos = (ni, nj)
+            else:
+                return False, "Movimento inválido."
 
-        return False, "Movimento realizado."
+            if player.pos == self.tesouro:
+                return True, "Você encontrou o tesouro!"
+
+            return False, "Movimento realizado."
