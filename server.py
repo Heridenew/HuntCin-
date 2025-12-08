@@ -2,6 +2,7 @@ import os
 import socket
 import json
 import threading
+import time
 from game import Game
 from player import Player
 
@@ -14,9 +15,8 @@ online = {}
 buffers = {}
 contatos = {}   # será carregado do arquivo
 
-
 # ==============================
-# UTILITÁRIOS
+#         UTILITÁRIOS
 # ==============================
 
 def carregar_contatos():
@@ -47,13 +47,16 @@ def enviar(conn, data):
     texto = json.dumps(data) + "\nEND\n"
     conn.sendall(texto.encode())
 
-
 def receber(conn):
     if conn not in buffers:
         buffers[conn] = ""
 
     try:
-        buffers[conn] += conn.recv(4096).decode()
+        data_raw = conn.recv(4096)
+        if not data_raw:
+            return {"desconectou": True}
+        buffers[conn] += data_raw.decode()
+
     except:
         return None
 
@@ -81,81 +84,90 @@ def porta_em_uso(porta):
 def encerrar_por_logout(game, jogador_desconectado):
     nome = jogador_desconectado.nome
 
-    # achar o outro jogador
+    outro = None
     for p in game.jogadores:
         if p != jogador_desconectado:
             outro = p
             break
-    else:
-        return  # só 1 jogador? não faz nada
 
-    # manda mensagens finais
-    enviar(outro.conn, {
-        "fim": True,
-        "msg": f"O jogador {nome} fez LOGOUT. Você venceu!"
-    })
+    # jogador sozinho no jogo
+    if outro is None:
+        try:
+            enviar(jogador_desconectado.conn, {
+                "fim": True,
+                "msg": "Você saiu do jogo (LOGOUT)."
+            })
+        except:
+            pass
+        return
 
-    enviar(jogador_desconectado.conn, {
-        "fim": True,
-        "msg": "Você saiu do jogo (LOGOUT)."
-    })
-
+    # avisar o outro jogador
     try:
-        outro.conn.close()
+        enviar(outro.conn, {
+            "fim": True,
+            "msg": f"O jogador {nome} fez LOGOUT. Você venceu!"
+        })
     except:
         pass
 
+    # avisar o que saiu
     try:
-        jogador_desconectado.conn.close()
+        enviar(jogador_desconectado.conn, {
+            "fim": True,
+            "msg": "Você saiu do jogo (LOGOUT)."
+        })
     except:
         pass
-
 
 # ==============================
-# LOGIN
+#            LOGIN
 # ==============================
 
 def realizar_login(conn):
     enviar(conn, {"msg": "Digite: login <nome>"})
-
-    while True:
+    
+    tentativas = 0
+    while tentativas < 3:  # Limite de tentativas
         data = receber(conn)
-
-        # Nada recebido → manda instrução novamente
         if data is None:
-            enviar(conn, {"msg": "Digite: login <nome>"})
             continue
-
-        cmd = data.get("cmd")
-        if not cmd:
-            enviar(conn, {"msg": "Digite: login <nome>"})
-            continue
-
-        partes = cmd.split()
-
-        if len(partes) != 2 or partes[0] != "login":
-            enviar(conn, {"msg": "Comando inválido. Use: login <nome>"})
-            continue
-
-        nome = partes[1]
-
-        if nome not in contatos:
-            enviar(conn, {"msg": "Usuário não existe na lista de contatos!"})
-            continue
-
-        if nome in online:
-            enviar(conn, {"msg": "Esse usuário já está online!"})
-            continue
-
-        # LOGIN OK
-        online[nome] = contatos[nome]
-        enviar(conn, {"msg": "você está online!"})
-        print(f"[LOGIN] {nome} entrou no sistema.")
-        return nome
+        
+        if "cmd" in data:
+            comando = data["cmd"].strip()
+            
+            if comando.lower().startswith("login "):
+                nome = comando[6:].strip()
+                
+                if nome in contatos:
+                    if nome in online:
+                        enviar(conn, {"msg": f"Usuário {nome} já está online."})
+                        tentativas += 1
+                        if tentativas < 3:
+                            enviar(conn, {"msg": "Digite: login <nome>"})
+                        continue
+                    
+                    # Login bem-sucedido
+                    online[nome] = conn.getpeername()
+                    enviar(conn, {"msg": "você está online!"})
+                    return nome
+                else:
+                    enviar(conn, {"msg": f"Nome '{nome}' não cadastrado."})
+                    tentativas += 1
+                    if tentativas < 3:
+                        enviar(conn, {"msg": "Digite: login <nome>"})
+            else:
+                enviar(conn, {"msg": "Comando inválido. Use: login <nome>"})
+                tentativas += 1
+                if tentativas < 3:
+                    enviar(conn, {"msg": "Digite: login <nome>"})
+    
+    # Tentativas esgotadas
+    enviar(conn, {"msg": "Número máximo de tentativas excedido."})
+    return None
 
 
 # ==============================
-# THREAD DO LOGIN
+#        THREAD DO LOGIN
 # ==============================
 
 class LoginThread(threading.Thread):
@@ -164,23 +176,25 @@ class LoginThread(threading.Thread):
         self.conn = conn
         self.addr = addr
         self.game = game
+        self.nome = None
 
     def run(self):
-        nome = realizar_login(self.conn)
-        if not nome:
-            self.conn.close()
-            return
-
-        pid = len(self.game.jogadores)
-        p = Player(pid, self.conn, self.addr, nome=nome)
-        self.game.add_player(p)
-
-        enviar(self.conn, {"msg": f"Bem-vindo ao jogo, {nome}! (Jogador {pid+1})"})
-        print(f"[JOGO] Jogador {pid+1} ({nome}) conectado.")
-
-
+        self.nome = realizar_login(self.conn)
+        
+        if self.nome:
+            pid = len(self.game.jogadores)
+            p = Player(pid, self.conn, self.addr, nome=self.nome)
+            self.game.add_player(p)
+            
+            enviar(self.conn, {"msg": f"Bem-vindo ao jogo, {self.nome}! (Jogador {pid+1})"})
+            print(f"[JOGO] Jogador {pid+1} ({self.nome}) conectado.")
+        else:
+            try:
+                self.conn.close()
+            except:
+                pass
 # ==============================
-# MENU DO SERVIDOR
+#       MENU DO SERVIDOR
 # ==============================
 
 def menu():
@@ -232,9 +246,8 @@ def menu():
         else:
             print("Opção inválida.")
 
-
 # ==============================
-# MAIN DO SERVIDOR
+#       MAIN DO SERVIDOR
 # ==============================
 
 def main():
@@ -258,12 +271,50 @@ def main():
 
     print("\nServidor iniciado. Aguardando jogadores...")
 
-    while len(game.jogadores) < total_jogadores:
+    login_threads = []
+    connections = []
+
+    # PRIMEIRO: Aceitar TODAS as conexões
+    while len(connections) < total_jogadores:
         conn, addr = s.accept()
         print(f"[CONEXÃO] Nova conexão: {addr}")
+        connections.append((conn, addr))
 
+    # SEGUNDO: Iniciar threads de login para TODAS as conexões
+    for conn, addr in connections:
         th = LoginThread(conn, addr, game)
         th.start()
+        login_threads.append(th)
+
+    # TERCEIRO: Aguardar todas as threads terminarem
+    for th in login_threads:
+        th.join()
+
+    # ==========================================
+    # VERIFICAÇÃO DE LOGINS BEM-SUCEDIDOS
+    # ==========================================
+    login_threads_sucesso = [th for th in login_threads if th.nome is not None]
+    jogadores_conectados = len(login_threads_sucesso)
+
+    print(f"\n>>> {jogadores_conectados} de {total_jogadores} jogadores conectados")
+
+    if jogadores_conectados < total_jogadores:
+        print("Não há jogadores suficientes. Encerrando...")
+        # Fechar conexões restantes
+        for th in login_threads:
+            if th.nome:
+                try:
+                    enviar(th.conn, {"fim": True, "msg": "Jogo cancelado - jogadores insuficientes."})
+                    th.conn.close()
+                except:
+                    pass
+            else:
+                try:
+                    th.conn.close()
+                except:
+                    pass
+        s.close()
+        return
 
     print("\n>>> Todos os jogadores conectados! Iniciando jogo...\n")
 
@@ -280,46 +331,45 @@ def main():
             break
 
         print("\n--- RODADA NOVA ---")
-        comandos = {}
 
         for p in game.jogadores:
             enviar(p.conn, {"turno": True, "msg": "Digite seu comando:"})
 
-        # receber comandos
+        # ----------------------------
+        #   RECEBER E PROCESSAR COMANDOS
+        # ----------------------------
         for p in game.jogadores:
-            data = None
-            while data is None:
-                data = receber(p.conn)
-            comandos[p.pid] = data["comando"]
+            data = receber(p.conn)
 
-        # processar comandos
-        for p in game.jogadores:
-            cmd = comandos[p.pid]
+            # jogador caiu ou desconectou
+            if not data or "desconectou" in data:
+                print(f"[DESCONECTADO] {p.nome} saiu do jogo.")
+                encerrar_por_logout(game, p)
+                fim = True
+                break
 
-        # ----------------------------
-        #   VERIFICAR LOGOUT
-        # ----------------------------
-        if cmd.lower() == "logout":
-            print(f"[LOGOUT] {p.nome} saiu do jogo.")
-            encerrar_por_logout(game, p)
-            fim = True
-            break
+            cmd = data.get("comando", "").lower()
 
-        # ----------------------------
-        #   PROCESSAR COMANDO NORMAL
-        # ----------------------------
-        achou, msg = game.comando(p, cmd)
-        enviar(p.conn, {"msg": msg})
+            # ----------- LOGOUT ----------
+            if cmd == "logout":
+                print(f"[LOGOUT] {p.nome} saiu do jogo.")
+                encerrar_por_logout(game, p)
+                fim = True
+                break
 
-        if achou:
-            for o in game.jogadores:
-                enviar(o.conn, {
-                    "fim": True,
-                    "msg": f"Jogador {p.pid+1} ({p.nome}) encontrou o tesouro!"
-                })
-            fim = True
-            break
+            # --------- COMANDO NORMAL ---------
+            achou, msg = game.comando(p, cmd)
+            enviar(p.conn, {"msg": msg})
 
+            # jogador ganhou
+            if achou:
+                for o in game.jogadores:
+                    enviar(o.conn, {
+                        "fim": True,
+                        "msg": f"Jogador {p.pid+1} ({p.nome}) encontrou o tesouro!"
+                    })
+                fim = True
+                break
 
     s.close()
 

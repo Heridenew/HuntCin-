@@ -29,9 +29,16 @@ class Game:
     def gerar_mapa(self):
         mapa = [["." for _ in range(3)] for __ in range(3)]
 
+        # tesouro
+        ti, tj = self.tesouro
+
+        # jogadores
         for p in self.jogadores:
             i, j = p.pos
-            mapa[i][j] = str(p.pid + 1)
+            if (i, j) == (ti, tj):
+                mapa[i][j] = "T"
+            else:
+                mapa[i][j] = str(p.pid + 1)
 
         return mapa
 
