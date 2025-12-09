@@ -1,20 +1,14 @@
+# models/game.py
 import random
-import os
-
-def humano_para_interno(x, y):
-    return (3 - y, x - 1)
-
-def interno_para_humano(i, j):
-    return (j + 1, 3 - i)
 
 class Game:
     def __init__(self):
         self.jogadores = []
-        self.mapa = [[0,0,0],
-                     [0,0,0],
-                     [0,0,0]]
+        self.mapa = [[0, 0, 0],
+                     [0, 0, 0],
+                     [0, 0, 0]]
         self.tesouro = self.spawn()
-
+    
     def spawn(self):
         while True:
             x = random.randint(1,3)
@@ -44,23 +38,28 @@ class Game:
 
     def comando(self, player, comando):
         i, j = player.pos
+        
+        # Converter "move up" para "up", etc
+        comando_simples = comando
+        if comando.lower().startswith("move "):
+            comando_simples = comando[5:].lower().strip()
 
         # =====================
         #       MOVIMENTOS
         # =====================
-        if comando == "up":
+        if comando_simples == "up":
             novo = (i - 1, j)
-        elif comando == "down":
+        elif comando_simples == "down":
             novo = (i + 1, j)
-        elif comando == "left":
+        elif comando_simples == "left":
             novo = (i, j - 1)
-        elif comando == "right":
+        elif comando_simples == "right":
             novo = (i, j + 1)
 
         # =====================
         #         HINT
         # =====================
-        elif comando == "hint":
+        elif comando_simples == "hint":
             if player.hint_used:
                 return False, "Você já usou sua dica."
             player.hint_used = True
@@ -86,7 +85,7 @@ class Game:
         # =====================
         #       SUGGEST
         # =====================
-        elif comando == "suggest":
+        elif comando_simples == "suggest":
             if player.suggest_used:
                 return False, "Você já usou sua sugestão."
             player.suggest_used = True
@@ -98,13 +97,13 @@ class Game:
                 return False, "Você está no tesouro!"
 
             if tx < px:
-                return False, "Sugestão: up"
+                return False, "Sugestão: move up"
             if tx > px:
-                return False, "Sugestão: down"
+                return False, "Sugestão: move down"
             if ty > py:
-                return False, "Sugestão: right"
+                return False, "Sugestão: move right"
             if ty < py:
-                return False, "Sugestão: left"
+                return False, "Sugestão: move left"
 
         else:
             return False, "Comando inválido."
@@ -112,7 +111,7 @@ class Game:
         # =====================
         #   PROCESSAR MOVIMENTO
         # =====================
-        if comando in ["up", "down", "left", "right"]:
+        if comando_simples in ["up", "down", "left", "right"]:
             ni, nj = novo
 
             if 0 <= ni < 3 and 0 <= nj < 3:
