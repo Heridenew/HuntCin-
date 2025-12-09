@@ -7,6 +7,7 @@ class Player:
         self.pos = (1, 1)
         self.hint_used = False
         self.suggest_used = False
+        self.score = 0
 
     def to_dict(self):
         return {
@@ -21,3 +22,9 @@ class Player:
         # Assumindo que pos é (i, j) onde i é linha, j é coluna
         i, j = self.pos
         return (j + 1, 3 - i)  # Adaptar conforme necessário
+
+    def reset_for_new_game(self):
+        """Reseta estado transient para novo jogo mantendo pontuação."""
+        self.pos = (1, 1)
+        self.hint_used = False
+        self.suggest_used = False

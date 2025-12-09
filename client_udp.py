@@ -1,20 +1,16 @@
-# client_udp.py
+# client_udp.py - VERSÃO CORRIGIDA
 import socket
 import time
-from network.rdt import RDT
-from utils.config import SERVER_HOST, SERVER_PORT
-from network.rdt import RDT
-from utils.config import Config
+from network import RDT
+from utils.config import SERVER_HOST, SERVER_PORT  # Importar variáveis
 
 class UDPClient:
     def __init__(self, client_port):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind(('127.0.0.1', client_port))
         self.rdt = None
-        self.server_addr = (Config.SERVER_HOST, Config.SERVER_PORT)
+        self.server_addr = (SERVER_HOST, SERVER_PORT)  # Usar variáveis
         self.nome = None
-    
-    # ... (métodos existentes do cliente)
     
     def conectar(self):
         """Conecta ao servidor"""
@@ -81,33 +77,37 @@ class UDPClient:
             print(f"\nTentativa {tentativa} de {max_tentativas}...")
             
             try:
-                # Enviar login usando RDT corretamente
+                # Enviar login usando RDT
                 if not self.enviar(f"login {self.nome}"):
                     print("❌ Falha ao enviar login")
                     continue
-                
+    
                 # Receber resposta com timeout
                 resposta = self.receber(timeout=10)
                 if resposta:
                     print(f"[Servidor]: {resposta}")
-                    if "online" in resposta or "você está online" in resposta or "Login bem-sucedido" in resposta:
+                    if "você está online!" in resposta:
                         login_sucesso = True
                         print("✅ Login bem-sucedido!")
-                        break
-                    elif "não cadastrado" in resposta or "já está online" in resposta or "Porta incorreta" in resposta:
-                        # Erro definitivo, não tentar novamente
-                        print("❌ Erro no login, verifique seus dados.")
-                        break
-                    else:
-                        print(f"⚠️ Resposta inesperada: {resposta}")
-                else:
-                    print(f"⏰ Timeout na tentativa {tentativa}")
+                        
+                        # AGUARDAR MAIS JOGADORES
+                        print("👥 Aguardando mais jogadores para iniciar o jogo...")
+                        
+                        while True:
+                            status = self.receber(timeout=30)
+                            if status and ("JOGO INICIADO" in status or "BEM-VINDO" in status):
+                                print(f"[Servidor]: {status}")
+                                break
+                            elif status:
+                                print(f"[Servidor]: {status}")
+                        
+                        break  # Sair do loop de tentativas
                     
             except ConnectionResetError:
                 print(f"❌ Conexão resetada pelo servidor na tentativa {tentativa}")
                 # Recriar socket e RDT
                 try:
-                    local_port = self.sock.getsockname()[1]  # Obter a porta atual
+                    local_port = self.sock.getsockname()[1]
                     self.sock.close()
                     self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                     self.sock.bind(('127.0.0.1', local_port))
@@ -121,7 +121,6 @@ class UDPClient:
         if not login_sucesso:
             print("❌ Falha no login após múltiplas tentativas")
             return
-        # ... resto do código ...
         
         # Aguardar início do jogo
         print("⏳ Aguardando início do jogo...")
@@ -133,19 +132,25 @@ class UDPClient:
                 print("⚠️ Nenhuma mensagem do servidor por 30 segundos")
                 continuar = input("Deseja continuar aguardando? (s/n): ").strip().lower()
                 if continuar != 's':
+                    # tenta logout limpo
+                    self.enviar("logout")
                     break
                 continue
             
             print(f"\n[Servidor]: {mensagem}")
             
             # Verificar se é turno
-            if "RODADA" in mensagem or "Digite seu comando:" in mensagem or "Você tem" in mensagem:
+            if "RODADA" in mensagem or "Digite seu comando:" in mensagem or "Sua posição:" in mensagem:
                 print("⏰ Você tem 10 segundos para responder!")
                 start = time.time()
                 
                 while time.time() - start < 10:
                     comando = input("> ").strip()
                     if comando:
+                        if comando.lower() == "logout":
+                            self.enviar("logout")
+                            print("Saindo do jogo...")
+                            return
                         if self.enviar(comando):
                             # Receber feedback
                             feedback = self.receber(timeout=5)

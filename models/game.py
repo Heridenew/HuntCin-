@@ -1,32 +1,51 @@
 # models/game.py
 import random
 
+def humano_para_interno(x, y):
+    """Converte coordenadas humanas (x,y) para internas (i,j)"""
+    # (1,1) → (2,0)
+    # (1,2) → (1,0)
+    # (1,3) → (0,0)
+    # (3,3) → (0,2)
+    return (3 - y, x - 1)
+
+def interno_para_humano(i, j):
+    """Converte coordenadas internas (i,j) para humanas (x,y)"""
+    # (0,0) → (1,3)
+    # (2,0) → (1,1)
+    # (0,2) → (3,3)
+    return (j + 1, 3 - i)
+
 class Game:
     def __init__(self):
         self.jogadores = []
-        self.mapa = [[0, 0, 0],
-                     [0, 0, 0],
-                     [0, 0, 0]]
+        self.mapa = [[0,0,0],
+                     [0,0,0],
+                     [0,0,0]]
         self.tesouro = self.spawn()
-    
+
     def spawn(self):
+        """Sorteia tesouro em qualquer posição exceto (1,1)"""
         while True:
             x = random.randint(1,3)
             y = random.randint(1,3)
-            if (x,y) != (1,1):
-                return humano_para_interno(x,y)
+            if (x,y) != (1,1):  # Não pode ser na posição inicial
+                return humano_para_interno(x, y)
 
     def add_player(self, player):
-        player.pos = humano_para_interno(1,1)
+        """Adiciona jogador na posição inicial (1,1)"""
+        player.reset_for_new_game()
+        player.pos = humano_para_interno(1, 1)  # (1,1) em coordenadas humanas
         self.jogadores.append(player)
 
     def gerar_mapa(self):
+        """Gera representação do mapa"""
         mapa = [["." for _ in range(3)] for __ in range(3)]
 
-        # tesouro
+        # Marcar tesouro
         ti, tj = self.tesouro
 
-        # jogadores
+        # Marcar jogadores
         for p in self.jogadores:
             i, j = p.pos
             if (i, j) == (ti, tj):
@@ -37,29 +56,25 @@ class Game:
         return mapa
 
     def comando(self, player, comando):
+        """Processa comando do jogador"""
         i, j = player.pos
         
-        # Converter "move up" para "up", etc
-        comando_simples = comando
-        if comando.lower().startswith("move "):
-            comando_simples = comando[5:].lower().strip()
-
         # =====================
         #       MOVIMENTOS
         # =====================
-        if comando_simples == "up":
+        if comando == "move up":
             novo = (i - 1, j)
-        elif comando_simples == "down":
+        elif comando == "move down":
             novo = (i + 1, j)
-        elif comando_simples == "left":
+        elif comando == "move left":
             novo = (i, j - 1)
-        elif comando_simples == "right":
+        elif comando == "move right":
             novo = (i, j + 1)
 
         # =====================
         #         HINT
         # =====================
-        elif comando_simples == "hint":
+        elif comando == "hint":
             if player.hint_used:
                 return False, "Você já usou sua dica."
             player.hint_used = True
@@ -70,22 +85,20 @@ class Game:
             if px == tx and py == ty:
                 return False, "Você está no tesouro!"
 
-            # vertical tem prioridade
+            # Dica de direção
             if tx < px:
-                return False, "Dica: o tesouro está acima."
-            if tx > px:
-                return False, "Dica: o tesouro está abaixo."
-
-            # horizontal se estiver na mesma linha
-            if ty > py:
-                return False, "Dica: o tesouro está à direita."
-            if ty < py:
-                return False, "Dica: o tesouro está à esquerda."
+                return False, "O tesouro está mais acima."
+            elif tx > px:
+                return False, "O tesouro está mais abaixo."
+            elif ty > py:
+                return False, "O tesouro está mais à direita."
+            else:
+                return False, "O tesouro está mais à esquerda."
 
         # =====================
         #       SUGGEST
         # =====================
-        elif comando_simples == "suggest":
+        elif comando == "suggest":
             if player.suggest_used:
                 return False, "Você já usou sua sugestão."
             player.suggest_used = True
@@ -97,13 +110,13 @@ class Game:
                 return False, "Você está no tesouro!"
 
             if tx < px:
-                return False, "Sugestão: move up"
-            if tx > px:
-                return False, "Sugestão: move down"
-            if ty > py:
-                return False, "Sugestão: move right"
-            if ty < py:
-                return False, "Sugestão: move left"
+                return False, "Sugestão: move up."
+            elif tx > px:
+                return False, "Sugestão: move down."
+            elif ty > py:
+                return False, "Sugestão: move right."
+            else:
+                return False, "Sugestão: move left."
 
         else:
             return False, "Comando inválido."
@@ -111,15 +124,19 @@ class Game:
         # =====================
         #   PROCESSAR MOVIMENTO
         # =====================
-        if comando_simples in ["up", "down", "left", "right"]:
+        if comando.startswith("move "):
             ni, nj = novo
 
+            # Verificar limites do grid
             if 0 <= ni < 3 and 0 <= nj < 3:
                 player.pos = (ni, nj)
+                # Converter para coordenadas humanas para mensagem
+                x, y = interno_para_humano(ni, nj)
+                
+                if player.pos == self.tesouro:
+                    tx, ty = interno_para_humano(*self.tesouro)
+                    return True, f"O jogador {player.nome} encontrou o tesouro na posição ({tx},{ty})!"
+                
+                return False, f"Movimento realizado. Nova posição: ({x},{y})"
             else:
-                return False, "Movimento inválido."
-
-            if player.pos == self.tesouro:
-                return True, "Você encontrou o tesouro!"
-
-            return False, "Movimento realizado."
+                return False, "Movimento inválido. Fora do grid."
