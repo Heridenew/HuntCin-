@@ -1,11 +1,11 @@
 # services/game_services.py
 import time
 import os
-from models.game import Game  # Importar no topo
+from models.game import Game
 
 class GameService:
     def __init__(self, connection_manager):
-        self.game = None  # Instância será criada depois
+        self.game = None
         self.connection_manager = connection_manager
         self.jogo_iniciado = False
         self.rodada_atual = 0
@@ -57,7 +57,6 @@ class GameService:
         if not self.game or not self.game.jogadores:
             return
         
-        # Função de conversão local
         def interno_para_humano(i, j):
             return (j + 1, 3 - i)
         
@@ -76,27 +75,22 @@ class GameService:
         if not self.game or not self.game.jogadores:
             return
         
-        # Reset comandos da rodada e deadline
         self.comandos_rodada = set()
         self.deadline_turno = time.time() + self.turno_timeout
         
-        # Console server: imprimir mapa com separador
         self._print_mapa_console()
         
-        # Mensagem geral de rodada (sincroniza todos os clientes)
         broadcast_inicio = (
             f"\n🔔 RODADA {self.rodada_atual + 1} iniciada! "
             f"Envie seu comando em até {self.turno_timeout}s."
         )
         self.enviar_para_todos(broadcast_inicio)
 
-        # Mensagem individual por jogador (posição e comandos + status de hint/suggest)
         for jogador in self.game.jogadores:
             def interno_para_humano(i, j):
                 return (j + 1, 3 - i)
             x, y = interno_para_humano(*jogador.pos)
             
-            # UMA ÚNICA MENSAGEM COM TUDO
             msg = f"\n🔔 RODADA {self.rodada_atual + 1} iniciada!"
             msg += f"\n🎯 SUA VEZ!"
             msg += f"\n📍 Sua posição: ({x},{y})"
@@ -134,7 +128,6 @@ class GameService:
         encontrou_tesouro, resposta = self.game.comando(jogador, comando)
         self.comandos_rodada.add(jogador_nome)
 
-        # Se todos já enviaram comando, encerra rodada imediatamente
         if len(self.comandos_rodada) == len(self.game.jogadores):
             self.rodada_atual += 1
             self.enviar_estado_atual()
@@ -151,14 +144,12 @@ class GameService:
         if agora <= self.deadline_turno and len(self.comandos_rodada) < len(self.game.jogadores):
             return False
         
-        # Notificar quem não enviou
         faltantes = [p.nome for p in self.game.jogadores if p.nome not in self.comandos_rodada]
         if faltantes:
             for nome in faltantes:
                 self.enviar_para_jogador(nome, "\n⏰ Tempo esgotado! Você perdeu o turno.")
             self.enviar_para_todos(f"\n⏰ Jogadores sem ação: {', '.join(faltantes)}")
         
-        # Avançar rodada
         self.rodada_atual += 1
         self.enviar_estado_atual()
         self.iniciar_rodada()
@@ -176,7 +167,6 @@ class GameService:
 
     def finalizar_vitoria(self, jogador_vencedor):
         """Incrementa placar e reinicia jogo com mesmo grupo."""
-        # Travar novos comandos durante a pausa
         self.pausa_pos_vitoria = True
         self.jogo_iniciado = False
         self.deadline_turno = None
@@ -192,10 +182,8 @@ class GameService:
         self.enviar_para_todos(mensagem_fim)
         self.enviar_placar()
         
-        # Pausa de 30 segundos (trava clientes)
         time.sleep(30)
 
-        # Se ainda houver pelo menos 2 jogadores, reinicia
         if self.connection_manager.get_qtd_jogadores() >= 2:
             self.game = Game()
             for _, conn in self.connection_manager.connections.items():
@@ -226,10 +214,8 @@ class GameService:
         self.game.jogadores = [p for p in self.game.jogadores if p.nome != nome]
         if nome in self.comandos_rodada:
             self.comandos_rodada.discard(nome)
-        # Ajustar rodada para evitar índice fora
         if self.rodada_atual >= len(self.game.jogadores):
             self.rodada_atual = 0
-        # Se ficar menos de 2, encerrar jogo
         if len(self.game.jogadores) < 2:
             self.enviar_para_todos("\n⚠️ Jogadores insuficientes. Jogo pausado.")
             self.jogo_iniciado = False

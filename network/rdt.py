@@ -7,16 +7,14 @@ import select
 import hashlib
 from utils.config import TIMEOUT, LOSS_PROBABILITY
 
-# Reduz logs para WARNING para não poluir entrada dos clientes
 logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class RDT:
     def __init__(self, sock, remote_addr):
         self.sock = sock
         self.remote_addr = remote_addr
-        # Separar sequência de envio e de recepção para não interferirem
-        self.send_seq_num = 0  # 0 ou 1 para pacotes enviados
-        self.recv_seq_num = 0  # 0 ou 1 para pacotes recebidos
+        self.send_seq_num = 0
+        self.recv_seq_num = 0
         self.timeout = TIMEOUT
 
     def _calculate_checksum(self, data):
@@ -56,7 +54,6 @@ class RDT:
             logging.info(f"[RDT] Enviado pacote (seq={self.send_seq_num}, {sent} bytes)")
             return True
         except OSError as e:
-            # Conexão resetada/recusada: avisar para encerrar rápido
             if getattr(e, "winerror", None) in (10054, 10061):
                 logging.error(f"[RDT] Conexão resetada/recusada ao enviar: {e}")
                 raise ConnectionResetError from e
@@ -80,45 +77,36 @@ class RDT:
             tentativas += 1
             packet = self._make_packet(data)
             
-            # Enviar pacote (com possível perda)
             try:
                 if not self._send_with_loss(packet):
-                    # Se o pacote foi "perdido" na simulação, espera timeout
                     logging.info(f"[RDT] Pacote perdido (simulação), tentativa {tentativas}")
-                    time.sleep(self.timeout)  # Espera pelo timeout
+                    time.sleep(self.timeout)
                     continue
             except ConnectionResetError:
-                # Fatal: não adianta retransmitir
                 raise
             
-            # Pacote enviado, espera ACK
             logging.debug(f"[RDT] Aguardando ACK para seq={self.send_seq_num}, tentativa {tentativas}")
             
             start_time = time.time()
             while time.time() - start_time < self.timeout:
                 try:
-                    # Usar select para verificar se há dados disponíveis
                     ready = select.select([self.sock], [], [], 0.1)
                     if ready[0]:
                         ack_data, addr = self.sock.recvfrom(1024)
                         
-                        # Verificar se é do endereço correto
                         if addr != self.remote_addr:
                             logging.debug(f"[RDT] ACK de endereço errado: {addr}")
                             continue
                             
-                        # CORREÇÃO CRÍTICA: ACK deve ser apenas 1 byte com número de sequência
-                        # Verificar se é um ACK válido (1 byte)
                         if len(ack_data) == 1:
                             ack_seq = ack_data[0]
                             if ack_seq == self.send_seq_num:
                                 logging.info(f"[RDT] ACK recebido para seq={self.send_seq_num}")
-                                self.send_seq_num = 1 - self.send_seq_num  # Alternar seq de envio
+                                self.send_seq_num = 1 - self.send_seq_num
                                 return
                             else:
                                 logging.debug(f"[RDT] ACK com seq errado: {ack_seq}, esperado: {self.send_seq_num}")
                         else:
-                            # Se não for 1 byte, pode ser um pacote de dados, não ACK
                             logging.debug(f"[RDT] Pacote recebido não é ACK (tamanho: {len(ack_data)} bytes)")
                             
                 except socket.timeout:
@@ -139,18 +127,15 @@ class RDT:
             timeout: Timeout em segundos. Se None, bloqueia indefinidamente.
                     Se especificado, retorna None após timeout.
         """
-        # Configurar timeout no socket se fornecido
         original_timeout = self.sock.gettimeout()
         if timeout is not None:
             self.sock.settimeout(timeout)
         elif original_timeout is None:
-            # Se não há timeout e socket não tinha timeout, usar timeout padrão para evitar bloqueio indefinido
             self.sock.settimeout(self.timeout)
         
         start_time = time.time()
         while True:
             try:
-                # Verificar timeout se especificado
                 if timeout is not None:
                     elapsed = time.time() - start_time
                     if elapsed >= timeout:
@@ -159,15 +144,12 @@ class RDT:
                 
                 logging.debug(f"[RDT] Aguardando dados, esperando seq={self.recv_seq_num}")
                 
-                # Receber pacote (agora com timeout configurado)
                 packet, addr = self.sock.recvfrom(1024)
                 
-                # Verificar se é do endereço correto
                 if addr != self.remote_addr:
                     logging.debug(f"[RDT] Pacote de endereço errado: {addr}")
                     continue
                 
-                # Parsear pacote
                 seq, data, checksum_ok = self.parse_packet(packet)
                 
                 if seq is None:
@@ -176,7 +158,6 @@ class RDT:
                 
                 logging.debug(f"[RDT] Pacote recebido: seq={seq}, checksum_ok={checksum_ok}, data_len={len(data)}")
                 
-                # CORREÇÃO CRÍTICA: Enviar ACK (APENAS 1 BYTE com número de sequência)
                 ack_packet = seq.to_bytes(1, 'big')
                 try:
                     self.sock.sendto(ack_packet, addr)
@@ -184,11 +165,9 @@ class RDT:
                 except Exception as e:
                     logging.error(f"[RDT] Erro enviando ACK: {e}")
                 
-                # Processar dados se checksum OK e seq correto
                 if checksum_ok and seq == self.recv_seq_num:
                     logging.info(f"[RDT] Pacote aceito: seq={seq}")
-                    self.recv_seq_num = 1 - self.recv_seq_num  # Alternar seq de recepção
-                    # Restaurar timeout original antes de retornar
+                    self.recv_seq_num = 1 - self.recv_seq_num
                     if timeout is not None or original_timeout is None:
                         self.sock.settimeout(original_timeout)
                     return data
@@ -199,14 +178,11 @@ class RDT:
                         logging.info(f"[RDT] Pacote duplicado (seq={seq}), ignorado")
                         
             except socket.timeout:
-                # Timeout ocorreu
                 if timeout is not None:
                     self.sock.settimeout(original_timeout)
                     return None
-                # Se timeout não foi especificado mas ocorreu, continuar tentando
                 continue
             except Exception as e:
-                # Restaurar timeout em caso de erro
                 if timeout is not None or original_timeout is None:
                     self.sock.settimeout(original_timeout)
                 logging.error(f"[RDT] Erro na recepção: {e}")

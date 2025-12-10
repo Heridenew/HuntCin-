@@ -1,7 +1,6 @@
 # main.py
 import sys
 
-# Evitar falhas de encoding em terminais Windows (cp1252)
 try:
     sys.stdout.reconfigure(errors="ignore")
     sys.stderr.reconfigure(errors="ignore")
