@@ -1,10 +1,9 @@
 # 🗺️ HuntCin -- Jogo Multiplayer via UDP com RDT 3.0
 
 **HuntCin** é um jogo multiplayer de caça ao tesouro implementado em
-Python usando **UDP confiável (RDT 3.0)**.\
-O projeto implementa envio confiável de pacotes, controle de conexão,
-gerenciamento de jogadores, lógica de jogo por rodadas e comunicação
-cliente-servidor.
+Python usando **UDP confiável (RDT 3.0)**. O projeto implementa envio
+confiável de pacotes, controle de conexão, gerenciamento de jogadores,
+lógica de jogo por rodadas e comunicação cliente-servidor.
 
 ------------------------------------------------------------------------
 
@@ -48,33 +47,33 @@ cliente-servidor.
 ------------------------------------------------------------------------
 
 ## 🗂️ Estrutura do Projeto
-.
-│   client_udp.py
-│   contatos.txt
-│   main.py
-│   README.md
-│   server_udp.py
-│   __init__.py
-│
-├───models
-│   │   game.py
-│   │   player.py
-│   │   __init__.py
-│
-├───network
-│   │   connection_manager.py
-│   │   rdt.py
-│   │   __init__.py
-│
-├───services
-│   │   game_services.py
-│   │   __init__.py
-│
-└───utils
-    │   config.py
-    │   positions_utils.py
-    │   __init__.py
 
+    .
+    │   client_udp.py
+    │   contatos.txt
+    │   main.py
+    │   README.md
+    │   server_udp.py
+    │   __init__.py
+    │
+    ├───models
+    │   │   game.py
+    │   │   player.py
+    │   │   __init__.py
+    │
+    ├───network
+    │   │   connection_manager.py
+    │   │   rdt.py
+    │   │   __init__.py
+    │
+    ├───services
+    │   │   game_services.py
+    │   │   __init__.py
+    │
+    └───utils
+        │   config.py
+        │   positions_utils.py
+        │   __init__.py
 
 ------------------------------------------------------------------------
 
@@ -118,11 +117,13 @@ Cada cliente deve usar **porta diferente**.
 
 ## 📡 Protocolo RDT
 
-O projeto implementa: - Pacotes numerados 0/1\
-- ACK explícito\
-- Checksum\
-- Timeout + reenvio\
-- Parsing correto no cliente e servidor
+O projeto implementa:
+
+-   Pacotes numerados 0/1\
+-   ACK explícito\
+-   Checksum\
+-   Timeout + reenvio\
+-   Parsing correto no cliente e servidor
 
 ------------------------------------------------------------------------
 
@@ -136,12 +137,14 @@ O projeto implementa: - Pacotes numerados 0/1\
 
 ## 🔧 Dependências
 
-Todas são da biblioteca padrão Python: - socket\
-- threading\
-- queue\
-- logging\
-- time\
-- re
+Todas são da biblioteca padrão Python:
+
+-   socket\
+-   threading\
+-   queue\
+-   logging\
+-   time\
+-   re
 
 ------------------------------------------------------------------------
 
@@ -161,9 +164,9 @@ Mover-se pelo mapa e **encontrar o tesouro antes dos outros**!
 
 ## 👥 Participantes
 
-- **Alexsandro José da Silva** — <ajs6@cin.ufpe.br>  
-- **João Henrique dos Santos Silva** — <jhss2@cin.ufpe.br>  
-- **Edenn Weslley dos Santos Silva** — <ewss@cin.ufpe.br>
+-   **Alexsandro José da Silva** --- <ajs6@cin.ufpe.br>\
+-   **João Henrique dos Santos Silva** --- <jhss2@cin.ufpe.br>\
+-   **Edenn Weslley dos Santos Silva** --- <ewss@cin.ufpe.br>
 
 ------------------------------------------------------------------------
 
