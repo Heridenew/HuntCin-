@@ -1,5 +1,6 @@
 # services/game_services.py
 import time
+import os
 from models.game import Game  # Importar no topo
 
 class GameService:
@@ -10,6 +11,7 @@ class GameService:
         self.rodada_atual = 0
         self.turno_timeout = 10
         self.deadline_turno = None
+        self.comandos_rodada = set()
     
     def iniciar_jogo(self):
         """Inicia o jogo quando há jogadores suficientes"""
@@ -73,88 +75,107 @@ class GameService:
         if not self.game or not self.game.jogadores:
             return
         
-        # Determinar jogador da vez
-        jogador_idx = self.rodada_atual % len(self.game.jogadores)
-        jogador = self.game.jogadores[jogador_idx]
-        nome_jogador = jogador.nome
+        # Reset comandos da rodada e deadline
+        self.comandos_rodada = set()
+        self.deadline_turno = time.time() + self.turno_timeout
         
-        # Converter posição
-        def interno_para_humano(i, j):
-            return (j + 1, 3 - i)
+        # Console server: limpar e imprimir mapa
+        try:
+            os.system('cls' if os.name == 'nt' else 'clear')
+        except Exception:
+            pass
+        self._print_mapa_console()
         
-        x, y = interno_para_humano(*jogador.pos)
-        
-        # Mensagens
+        # Mensagem geral de rodada (sincroniza todos os clientes)
         broadcast_inicio = (
             f"\n🔔 RODADA {self.rodada_atual + 1} iniciada! "
-            f"Jogador da vez: {nome_jogador}"
+            f"Envie seu comando em até {self.turno_timeout}s."
         )
         self.enviar_para_todos(broadcast_inicio)
+
+        # Mensagem individual por jogador (posição e comandos)
+        for jogador in self.game.jogadores:
+            def interno_para_humano(i, j):
+                return (j + 1, 3 - i)
+            x, y = interno_para_humano(*jogador.pos)
+            
+            # UMA ÚNICA MENSAGEM COM TUDO
+            msg = f"\n🔔 RODADA {self.rodada_atual + 1} iniciada!"
+            msg += f"\n🎯 SUA VEZ!"
+            msg += f"\n📍 Sua posição: ({x},{y})"
+            msg += f"\n🎮 Comandos: move up/down/left/right"
+            if not jogador.hint_used:
+                msg += f"\n           hint (1 uso)"
+            if not jogador.suggest_used:
+                msg += f"\n           suggest (1 uso)"
+            msg += f"\n\n⏰ Você tem {self.turno_timeout} segundos!"
+            msg += f"\n> Digite seu comando:"
+            
+            self.enviar_para_jogador(jogador.nome, msg)
+            
+            print(f"DEBUG: Turno enviado para {jogador.nome} pos=({x},{y})")
         
-        mensagem_turno = f"\n🎯 RODADA {self.rodada_atual + 1} - SUA VEZ!"
-        mensagem_turno += f"\n📍 Sua posição: ({x},{y})"
-        mensagem_turno += f"\n🎮 Comandos: move up/down/left/right"
-        if not jogador.hint_used:
-            mensagem_turno += f"\n           hint (1 uso)"
-        if not jogador.suggest_used:
-            mensagem_turno += f"\n           suggest (1 uso)"
-        mensagem_turno += f"\n\n⏰ Você tem {self.turno_timeout} segundos!"
-        mensagem_turno += f"\n> Digite seu comando:"
-        
-        self.enviar_para_jogador(nome_jogador, mensagem_turno)
-        
-        # Aviso para outros
-        for outro in self.game.jogadores:
-            if outro.nome != nome_jogador:
-                mensagem_espera = f"\n⏳ Aguarde... É a vez de {nome_jogador}"
-                self.enviar_para_jogador(outro.nome, mensagem_espera)
-        
-        self.deadline_turno = time.time() + self.turno_timeout
-        print(f"🎮 Rodada {self.rodada_atual + 1}: Vez de {nome_jogador}")
+        print(f"Rodada {self.rodada_atual + 1}: comandos abertos para todos")
+        time.sleep(0.5)  # Sincronização
     
     def processar_comando(self, jogador_nome, comando):
-        """Processa comando do jogador"""
+        """Processa comando do jogador (rodada simultânea)."""
         if not self.jogo_iniciado or not self.game:
             return False, "Jogo não iniciado", False
         
-        # Verificar se é a vez deste jogador
-        if self.rodada_atual >= len(self.game.jogadores):
-            self.rodada_atual = 0
-        
-        jogador_idx = self.rodada_atual % len(self.game.jogadores)
-        jogador_da_vez = self.game.jogadores[jogador_idx]
-        
-        if jogador_da_vez.nome != jogador_nome:
-            return False, "⚠️ Não é sua vez! Aguarde seu turno.", False
+        jogador = next((p for p in self.game.jogadores if p.nome == jogador_nome), None)
+        if not jogador:
+            return False, "Jogador não encontrado", False
         
         # Verificar timeout antes de aceitar comando
         if self.deadline_turno and time.time() > self.deadline_turno:
             return False, "⏰ Tempo esgotado para este turno. Aguarde a próxima rodada.", False
         
-        # Processar comando
-        encontrou_tesouro, resposta = self.game.comando(jogador_da_vez, comando)
+        if jogador_nome in self.comandos_rodada:
+            return False, "⚠️ Você já enviou comando nesta rodada.", False
+        
+        encontrou_tesouro, resposta = self.game.comando(jogador, comando)
+        self.comandos_rodada.add(jogador_nome)
+
+        # Se todos já enviaram comando, encerra rodada imediatamente
+        if len(self.comandos_rodada) == len(self.game.jogadores):
+            self.rodada_atual += 1
+            self.enviar_estado_atual()
+            self.iniciar_rodada()
+
         return encontrou_tesouro, resposta, True
 
     def tratar_timeout_turno(self):
-        """Verifica deadline e pula turno se necessário."""
+        """Verifica deadline e fecha rodada simultânea se necessário."""
         if not self.jogo_iniciado or not self.game or not self.deadline_turno:
             return False
         
-        if time.time() <= self.deadline_turno:
+        agora = time.time()
+        if agora <= self.deadline_turno and len(self.comandos_rodada) < len(self.game.jogadores):
             return False
         
-        # Tempo esgotado
-        jogador_idx = self.rodada_atual % len(self.game.jogadores)
-        jogador = self.game.jogadores[jogador_idx]
-        msg_jogador = "\n⏰ Tempo esgotado! Você perdeu o turno."
-        self.enviar_para_jogador(jogador.nome, msg_jogador)
-        self.enviar_para_todos(f"\n⏰ {jogador.nome} perdeu o turno por tempo.")
+        # Notificar quem não enviou
+        faltantes = [p.nome for p in self.game.jogadores if p.nome not in self.comandos_rodada]
+        if faltantes:
+            for nome in faltantes:
+                self.enviar_para_jogador(nome, "\n⏰ Tempo esgotado! Você perdeu o turno.")
+            self.enviar_para_todos(f"\n⏰ Jogadores sem ação: {', '.join(faltantes)}")
         
         # Avançar rodada
         self.rodada_atual += 1
         self.enviar_estado_atual()
         self.iniciar_rodada()
         return True
+
+    def _print_mapa_console(self):
+        """Imprime mapa atual no console do servidor."""
+        if not self.game:
+            return
+        mapa = self.game.gerar_mapa()
+        print("\n=== MAPA ATUAL ===")
+        for linha in mapa:
+            print(" ".join(linha))
+        print("==================")
 
     def finalizar_vitoria(self, jogador_vencedor):
         """Incrementa placar e reinicia jogo com mesmo grupo."""
@@ -191,6 +212,8 @@ class GameService:
         if not self.game:
             return
         self.game.jogadores = [p for p in self.game.jogadores if p.nome != nome]
+        if nome in self.comandos_rodada:
+            self.comandos_rodada.discard(nome)
         # Ajustar rodada para evitar índice fora
         if self.rodada_atual >= len(self.game.jogadores):
             self.rodada_atual = 0
