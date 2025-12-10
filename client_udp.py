@@ -1,4 +1,4 @@
-# client_udp.py - VERSÃO CORRIGIDA COM THREADING
+# client_udp.py
 import socket
 import time
 import threading
@@ -6,13 +6,11 @@ import queue
 import sys
 import re
 from network import RDT
-from utils.config import SERVER_HOST, SERVER_PORT  # Importar variáveis
+from utils.config import SERVER_HOST, SERVER_PORT
 
-# Silenciar logs de debug/info do RDT no cliente para não poluir o prompt
 import logging
 logging.getLogger().setLevel(logging.WARNING)
 
-# Evitar falhas de encoding em terminais Windows (cp1252)
 try:
     import sys
     sys.stdout.reconfigure(errors="ignore")
@@ -25,14 +23,11 @@ class UDPClient:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind(('127.0.0.1', client_port))
         self.rdt = None
-        self.server_addr = (SERVER_HOST, SERVER_PORT)  # Usar variáveis
+        self.server_addr = (SERVER_HOST, SERVER_PORT)
         self.nome = nome
-        # Lock para sincronizar envio/recepção RDT e evitar perda de ACKs
         self.rdt_lock = threading.Lock()
-        # Controle de rodada já exibida para evitar duplicidade de prompt
         self.last_round_shown = None
         
-        # Threading para recepção não-bloqueante
         self.message_queue = queue.Queue()
         self.receiving_thread = None
         self.receiving_active = False
@@ -45,7 +40,6 @@ class UDPClient:
         """Envia mensagem usando RDT"""
         if self.rdt:
             try:
-                # Serializar acesso ao RDT para não colidir com recv()
                 with self.rdt_lock:
                     self.rdt.send(mensagem.encode())
                 return True
@@ -59,29 +53,21 @@ class UDPClient:
         while self.receiving_active:
             try:
                 if self.rdt:
-                    # Usar timeout curto para permitir verificação periódica do flag
                     with self.rdt_lock:
                         data = self.rdt.recv(timeout=0.3)
                     if data:
-                        # Ignorar pacotes de 1 byte (ACK) que podem chegar aqui
                         if len(data) == 1:
                             continue
                         mensagem = data.decode()
-                        # Guardar na fila para o loop principal
-                        # Evitar enfileirar mensagens de rodada duplicadas
                         msg_lower = mensagem.lower()
                         round_match = re.search(r'rodada\s+(\d+)', msg_lower)
                         if round_match:
                             round_num = int(round_match.group(1))
                             if round_num == self.last_round_shown:
-                                # Já mostramos esta rodada; não enfileirar de novo
                                 continue
                             self.last_round_shown = round_num
                         self.message_queue.put(mensagem)
 
-                        # Exibir imediatamente somente mensagens de broadcast
-                        # (rodada, tempo esgotado, estado, vencedor/tesouro).
-                        # Respostas individuais ficam só na fila para evitar duplicidade.
                         try:
                             is_broadcast = (
                                 ("rodada" in msg_lower and "iniciada" in msg_lower) or
@@ -103,16 +89,14 @@ class UDPClient:
                         except Exception:
                             pass
             except socket.timeout:
-                # Timeout é esperado, continuar
                 continue
             except Exception as e:
                 if self.receiving_active:
-                    # Apenas logar se ainda estiver ativo
                     logging.debug(f"Erro na thread de recepção: {e}")
                 break
     
     def receber(self, timeout=None):
-        """Recebe mensagem usando RDT (método legado para compatibilidade)"""
+        """Recebe mensagem usando RDT"""
         if self.rdt:
             try:
                 data = self.rdt.recv(timeout=timeout)
@@ -219,11 +203,7 @@ class UDPClient:
             if mensagem:
                 ultima_mensagem_time = time.time()  # Resetar contador
                 
-                # Verificar se é turno
                 if "RODADA" in mensagem or "Digite seu comando:" in mensagem or "Sua posição:" in mensagem:
-                    # Mensagens de rodada já foram exibidas pela thread de recepção (evita duplicidade)
-                    
-                    # AGORA input() não bloqueia a recepção porque está em thread separada!
                     try:
                         comando = " ".join(input("> ").strip().lower().split())
                     except (EOFError, KeyboardInterrupt):
@@ -255,7 +235,6 @@ class UDPClient:
                     break
                 
                 elif "Estado atual" in mensagem or "Bem-vindo ao jogo" in mensagem:
-                    # Apenas mostrar estado
                     print(mensagem)
                     continue
                 
@@ -263,7 +242,6 @@ class UDPClient:
                     print("❌ Você foi desconectado")
                     break
                 else:
-                    # Outras mensagens - apenas mostrar
                     print(mensagem)
             
             # Verificar timeout de espera
