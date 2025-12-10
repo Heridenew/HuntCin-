@@ -49,7 +49,7 @@ class Game:
         for p in self.jogadores:
             i, j = p.pos
             if (i, j) == (ti, tj):
-                mapa[i][j] = "T"
+                pass
             else:
                 mapa[i][j] = str(p.pid + 1)
 

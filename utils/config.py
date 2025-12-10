@@ -23,4 +23,4 @@ BUFFER_SIZE = 1024
 END_SIGNAL = b"__END__"
 
 TIMEOUT = 2.0             # Tempo em segundos para timeout
-LOSS_PROBABILITY = float(os.getenv("LOSS_PROBABILITY", 0.2))  # 20% por padrão
+LOSS_PROBABILITY = 0.0 

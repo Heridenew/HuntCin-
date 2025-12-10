@@ -12,6 +12,7 @@ class GameService:
         self.turno_timeout = 10
         self.deadline_turno = None
         self.comandos_rodada = set()
+        self.pausa_pos_vitoria = False
     
     def iniciar_jogo(self):
         """Inicia o jogo quando há jogadores suficientes"""
@@ -79,11 +80,7 @@ class GameService:
         self.comandos_rodada = set()
         self.deadline_turno = time.time() + self.turno_timeout
         
-        # Console server: limpar e imprimir mapa
-        try:
-            os.system('cls' if os.name == 'nt' else 'clear')
-        except Exception:
-            pass
+        # Console server: imprimir mapa com separador
         self._print_mapa_console()
         
         # Mensagem geral de rodada (sincroniza todos os clientes)
@@ -93,7 +90,7 @@ class GameService:
         )
         self.enviar_para_todos(broadcast_inicio)
 
-        # Mensagem individual por jogador (posição e comandos)
+        # Mensagem individual por jogador (posição e comandos + status de hint/suggest)
         for jogador in self.game.jogadores:
             def interno_para_humano(i, j):
                 return (j + 1, 3 - i)
@@ -103,11 +100,9 @@ class GameService:
             msg = f"\n🔔 RODADA {self.rodada_atual + 1} iniciada!"
             msg += f"\n🎯 SUA VEZ!"
             msg += f"\n📍 Sua posição: ({x},{y})"
-            msg += f"\n🎮 Comandos: move up/down/left/right"
-            if not jogador.hint_used:
-                msg += f"\n           hint (1 uso)"
-            if not jogador.suggest_used:
-                msg += f"\n           suggest (1 uso)"
+            msg += "\n🎮 Comandos: move up | move down | move left | move right | hint | suggest | logout"
+            msg += f"\nHint: {'já usado' if jogador.hint_used else 'disponível (1 uso)'}"
+            msg += f"\nSuggest: {'já usado' if jogador.suggest_used else 'disponível (1 uso)'}"
             msg += f"\n\n⏰ Você tem {self.turno_timeout} segundos!"
             msg += f"\n> Digite seu comando:"
             
@@ -122,6 +117,8 @@ class GameService:
         """Processa comando do jogador (rodada simultânea)."""
         if not self.jogo_iniciado or not self.game:
             return False, "Jogo não iniciado", False
+        if self.pausa_pos_vitoria:
+            return False, "Partida encerrada. Aguardando reinício...", False
         
         jogador = next((p for p in self.game.jogadores if p.nome == jogador_nome), None)
         if not jogador:
@@ -172,33 +169,48 @@ class GameService:
         if not self.game:
             return
         mapa = self.game.gerar_mapa()
-        print("\n=== MAPA ATUAL ===")
+        print("\n" + "="*20 + " MAPA ATUAL " + "="*20)
         for linha in mapa:
             print(" ".join(linha))
-        print("==================")
+        print("="*50)
 
     def finalizar_vitoria(self, jogador_vencedor):
         """Incrementa placar e reinicia jogo com mesmo grupo."""
+        # Travar novos comandos durante a pausa
+        self.pausa_pos_vitoria = True
+        self.jogo_iniciado = False
+        self.deadline_turno = None
+
         jogador_vencedor.score += 1
         ti, tj = self.game.tesouro
         x, y = (tj + 1, 3 - ti)
         mensagem_fim = (
             f"\nO jogador {jogador_vencedor.nome}:{jogador_vencedor.addr[1]} encontrou o tesouro na posição ({x},{y})!"
             f"\n🎉 {jogador_vencedor.nome.upper()} É O VENCEDOR!"
+            f"\n⏳ Reiniciando em 30 segundos..."
         )
         self.enviar_para_todos(mensagem_fim)
         self.enviar_placar()
         
-        # Reiniciar mantendo jogadores conectados
-        self.game = Game()
-        for _, conn in self.connection_manager.connections.items():
-            player = conn['player']
-            self.game.add_player(player)
-        self.rodada_atual = 0
-        self.deadline_turno = None
-        self.enviar_para_todos("\n🔄 Novo tesouro sorteado! Reiniciando a partida.")
-        self.enviar_estado_atual()
-        self.iniciar_rodada()
+        # Pausa de 30 segundos (trava clientes)
+        time.sleep(30)
+
+        # Se ainda houver pelo menos 2 jogadores, reinicia
+        if self.connection_manager.get_qtd_jogadores() >= 2:
+            self.game = Game()
+            for _, conn in self.connection_manager.connections.items():
+                player = conn['player']
+                self.game.add_player(player)
+            self.rodada_atual = 0
+            self.deadline_turno = None
+            self.pausa_pos_vitoria = False
+            self.enviar_para_todos("\n🔄 Novo tesouro sorteado! Reiniciando a partida.")
+            self.enviar_estado_atual()
+            self.iniciar_rodada()
+        else:
+            # Caso não haja jogadores suficientes, fica pausado
+            self.game = None
+            self.pausa_pos_vitoria = False
 
     def enviar_placar(self):
         """Envia placar atual para todos."""

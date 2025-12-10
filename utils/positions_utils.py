@@ -1,10 +1,10 @@
 # utils/position_utils.py
 def humano_para_interno(x, y):
-    """Converte coordenadas humanas para internas"""
+    """Converte coordenadas normais para internas"""
     return (3 - y, x - 1)
 
 def interno_para_humano(i, j):
-    """Converte coordenadas internas para humanas"""
+    """Converte coordenadas internas para normais"""
     return (j + 1, 3 - i)
 
 def validar_posicao(x, y):

@@ -137,8 +137,17 @@ class UDPServer:
             if not checksum_ok or seq is None:
                 print(f"   ❌ Pacote RDT inválido de {jogador_nome}")
                 return
+
+            # Enviar ACK (1 byte) para o comando recebido
+            try:
+                ack_packet = seq.to_bytes(1, 'big')
+                self.sock.sendto(ack_packet, addr)
+            except Exception as e:
+                print(f"❌ Erro enviando ACK para {jogador_nome}: {e}")
+                return
             
-            comando = mensagem_bytes.decode('utf-8', errors='ignore').strip()
+            # Normalizar comando para evitar problemas de capitalização/espaços
+            comando = mensagem_bytes.decode('utf-8', errors='ignore').strip().lower()
             print(f"   📥 Comando de {jogador_nome}: {comando}")
 
             # Logout
@@ -154,19 +163,20 @@ class UDPServer:
             encontrou_tesouro, resposta, consumiu_turno = self.game_service.processar_comando(jogador_nome, comando)
             
             # Enviar resposta ao jogador
-            rdt.send(resposta.encode())
+            try:
+                rdt.send(resposta.encode())
+            except ConnectionResetError:
+                # Cliente caiu; remover para não travar rodada
+                print(f"❌ Conexão resetada ao responder {jogador_nome}, removendo jogador")
+                self.game_service.remover_jogador(jogador_nome)
+                self.connection_manager.remover_conexao(jogador_nome)
+                if addr in self.rdt_instances:
+                    del self.rdt_instances[addr]
+                return
             
             if encontrou_tesouro:
                 # FIM DO JOGO e reinício com mesmo grupo
                 self.game_service.finalizar_vitoria(conn['player'])
-            elif consumiu_turno:
-                # Enviar estado atual para todos
-                self.game_service.enviar_estado_atual()
-                
-                # Próxima rodada
-                self.game_service.rodada_atual += 1
-                time.sleep(1)
-                self.game_service.iniciar_rodada()
                 
         except Exception as e:
             print(f"❌ Erro processando comando: {e}")
