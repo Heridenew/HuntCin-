@@ -159,6 +159,14 @@ Mover-se pelo mapa e **encontrar o tesouro antes dos outros**!
 
 ------------------------------------------------------------------------
 
+## 👥 Participantes
+
+- **Alexsandro José da Silva** — <ajs6@cin.ufpe.br>  
+- **João Henrique dos Santos Silva** — <jhss2@cin.ufpe.br>  
+- **Edenn Weslley dos Santos Silva** — <ewss@cin.ufpe.br>
+
+------------------------------------------------------------------------
+
 ## 📜 Licença
 
 Projeto acadêmico --- uso livre para fins educacionais.
