@@ -190,7 +190,6 @@ O tesouro é posicionado aleatoriamente a cada partida (exceto na posição inic
 ## 👥 Participantes
 
 -   **Alexsandro José da Silva** --- <ajs6@cin.ufpe.br>
--   **João Henrique dos Santos Silva** --- <jhss2@cin.ufpe.br>
 -   **Edenn Weslley dos Santos Silva** --- <ewss@cin.ufpe.br>
 
 ------------------------------------------------------------------------
