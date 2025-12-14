@@ -109,17 +109,19 @@ class Game:
             if px == tx and py == ty:
                 return False, "Você está no tesouro!"
 
-            if tx < px:
-                return False, "Sugestão: move up."
-            elif tx > px:
-                return False, "Sugestão: move down."
-            elif ty > py:
-                return False, "Sugestão: move right."
-            else:
-                return False, "Sugestão: move left."
-
-        else:
-            return False, "Comando inválido."
+            # Calcula direção principal
+            if tx < px:  # Tesouro está acima
+                casas = px - tx
+                return False, f"Sugestão: move up {casas} casa{'s' if casas > 1 else ''}."
+            elif tx > px:  # Tesouro está abaixo
+                casas = tx - px
+                return False, f"Sugestão: move down {casas} casa{'s' if casas > 1 else ''}."
+            elif ty > py:  # Tesouro está à direita
+                casas = ty - py
+                return False, f"Sugestão: move right {casas} casa{'s' if casas > 1 else ''}."
+            else:  # Tesouro está à esquerda
+                casas = py - ty
+                return False, f"Sugestão: move left {casas} casa{'s' if casas > 1 else ''}."
 
         # =====================
         #   PROCESSAR MOVIMENTO
