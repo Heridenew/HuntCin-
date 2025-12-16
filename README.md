@@ -6,14 +6,14 @@
 
 ## 📌 Funcionalidades Principais
 
-### ✔️ Protocolo RDT (Reliable Data Transfer)
+###  Protocolo RDT (Reliable Data Transfer)
 
 -   Envio e recepção confiável via **UDP**
 -   ACK, reenvio, verificação de checksum
 -   Threads independentes de recepção
 -   Tratamento de timeouts
 
-### ✔️ Servidor UDP com controle de jogadores
+###  Servidor UDP com controle de jogadores
 
 -   Login com validação
 -   Gerenciamento de conexões
@@ -22,7 +22,7 @@
 -   Broadcast para todos os jogadores
 -   Suporte a desconexões
 
-### ✔️ Cliente interativo
+###  Cliente interativo
 
 -   Interface no terminal
 -   Recepção assíncrona de mensagens
@@ -32,7 +32,7 @@
     -   `suggest`
     -   `logout`
 
-### ✔️ Jogo de Caça ao Tesouro
+###  Jogo de Caça ao Tesouro
 
 -   Mapa interno
 -   Movimentação por turnos
@@ -42,7 +42,7 @@
 
 ------------------------------------------------------------------------
 
-## 🗂️ Estrutura do Projeto
+##  Estrutura do Projeto
 
 ```
 .
@@ -75,15 +75,15 @@
 
 ------------------------------------------------------------------------
 
-## 🚀 Como Executar
+##  Como Executar
 
-### 1️⃣ Iniciar o servidor (em um terminal)
+### 1️ Iniciar o servidor (em um terminal)
 
 ```bash
 python main.py server
 ```
 
-### 2️⃣ Iniciar os clientes (em terminais separados)
+### 2️ Iniciar os clientes (em terminais separados)
 
 **Cliente 1:**
 ```bash
@@ -99,7 +99,7 @@ python main.py client
 
 ------------------------------------------------------------------------
 
-## 📋 Pré-requisitos
+##  Pré-requisitos
 
 1. **Python 3.8 ou superior**
 2. **Arquivo `contatos.txt`** configurado com os jogadores
@@ -128,7 +128,7 @@ Pedro;127.0.0.1:5003
 
 ------------------------------------------------------------------------
 
-## 📡 Protocolo RDT
+##  Protocolo RDT
 
 O projeto implementa:
 
@@ -140,7 +140,7 @@ O projeto implementa:
 
 ------------------------------------------------------------------------
 
-## 👥 Multijogador
+##  Multijogador
 
 -   Múltiplos clientes simultâneos
 -   Cada jogador possui PID, nome, posição e sua própria conexão RDT
@@ -150,7 +150,7 @@ O projeto implementa:
 
 ------------------------------------------------------------------------
 
-## 🔧 Dependências
+##  Dependências
 
 Todas são da biblioteca padrão Python:
 
@@ -164,7 +164,7 @@ Todas são da biblioteca padrão Python:
 
 ------------------------------------------------------------------------
 
-## 📄 contatos.txt
+##  contatos.txt
 
 Arquivo de contatos no formato:
 
@@ -180,7 +180,7 @@ Maria;127.0.0.1:5002
 
 ------------------------------------------------------------------------
 
-## 🏆 Objetivo do Jogo
+##  Objetivo do Jogo
 
 Mover-se pelo mapa 3x3 e **encontrar o tesouro antes dos outros**!
 O tesouro é posicionado aleatoriamente a cada partida (exceto na posição inicial).
